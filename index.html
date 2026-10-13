@@ -86,6 +86,14 @@
     margin-top: 1.3rem; padding: 0.85rem; background: var(--banner-bg);
     border-left: 4px solid var(--cite-yellow); border-radius: 0 6px 6px 0; font-size: 0.84rem;
   }
+  .already-done {
+    background: #fff5f5; border: 1px solid #feb2b2; border-radius: 8px;
+    padding: 1rem; margin-top: 1rem; font-size: 0.9rem; color: #9b2c2c; text-align: center;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .already-done { background: #450a0a; border-color: #991b1b; color: #fca5a5; }
+  }
+  [data-theme="dark"] .already-done { background: #450a0a; border-color: #991b1b; color: #fca5a5; }
   #exam-page { display: none; padding-bottom: 4rem; }
   .exam-header {
     background: var(--header-bg); color: var(--header-text); padding: 0.85rem 1.25rem;
@@ -174,7 +182,6 @@
   .screenshot-note {
     text-align: center; font-size: 0.8rem; color: var(--muted); padding: 0 1.35rem 1.1rem; line-height: 1.4;
   }
-  /* Answer review */
   .review-section { max-width: 560px; margin: 1.5rem auto 0; }
   .review-section h3 { font-size: 1.05rem; margin-bottom: 0.85rem; text-align: center; color: var(--text); }
   .review-card {
@@ -245,19 +252,26 @@
     <h1>Mathematics in the Modern World</h1>
     <p class="subtitle">Chapter 2 — Summative Examination</p>
     <p class="school">Center for Industrial Technology and Enterprise</p>
-    <div class="form-group">
-      <label for="student-name">Complete Name</label>
-      <input type="text" id="student-name" placeholder="Dela Cruz, Juan B." autocomplete="name" maxlength="80">
-      <div class="error-msg" id="name-error">Please enter your complete name.</div>
+    <div id="start-form">
+      <div class="form-group">
+        <label for="student-name">Complete Name</label>
+        <input type="text" id="student-name" placeholder="Enter your complete name" autocomplete="name" maxlength="80">
+        <div class="error-msg" id="name-error">Please enter your complete name.</div>
+      </div>
+      <div class="form-group">
+        <label for="student-section">Program and Section</label>
+        <input type="text" id="student-section" placeholder="e.g. BSIT 1A" autocomplete="off" maxlength="60">
+        <div class="error-msg" id="section-error">Please enter your program and section.</div>
+      </div>
+      <button class="btn btn-primary" id="start-btn" onclick="startExam()">Start Examination</button>
     </div>
-    <div class="form-group">
-      <label for="student-section">Program and Section</label>
-      <input type="text" id="student-section" placeholder="e.g. 1M - Mech" autocomplete="off" maxlength="60">
-      <div class="error-msg" id="section-error">Please enter your program and section.</div>
+    <div id="already-submitted-msg" class="already-done" style="display:none;">
+      You have already submitted this examination on this device.<br>
+      Please screenshot your results if you still need them.
+      <button class="btn btn-secondary" style="width:auto;margin-top:0.75rem;" onclick="showStoredResults()">View My Results</button>
     </div>
-    <button class="btn btn-primary" onclick="startExam()">Start Examination</button>
     <div class="info-note">
-      <strong>Instructions:</strong> 50 multiple-choice questions (20 from Lesson 1, 30 from Lesson 2). Answer carefully. After submission you will see your score and a per-item review. Screenshot the results summary and submit it through Google Classroom.
+      <strong>Instructions:</strong> 50 multiple-choice questions (20 from Lesson 1, 30 from Lesson 2). Your progress is saved on this device. After submission you cannot retake on this browser. Screenshot the results and submit via Google Classroom.
     </div>
   </div>
 </div>
@@ -295,19 +309,16 @@
       <div class="info-row"><span class="info-label">Name</span><span class="info-value" id="res-name"></span></div>
       <div class="info-row"><span class="info-label">Program / Section</span><span class="info-value" id="res-section"></span></div>
       <div class="info-row"><span class="info-label">Date &amp; Time</span><span class="info-value" id="res-datetime"></span></div>
-
       <div class="score-block">
         <div class="big-score" id="res-score">0 / 50</div>
         <div class="pct" id="res-pct">0%</div>
         <div class="detail" id="res-detail">Correct: 0 · Incorrect: 0 · Unanswered: 0</div>
       </div>
-
       <div class="section-title">Lesson Scores</div>
       <table class="score-table">
         <thead><tr><th>Lesson</th><th class="num">Score</th><th class="pct-col">%</th></tr></thead>
         <tbody id="lesson-scores-body"></tbody>
       </table>
-
       <div class="section-title">Topic Scores</div>
       <table class="score-table">
         <thead><tr><th>Topic</th><th class="num">Score</th><th class="pct-col">%</th></tr></thead>
@@ -316,15 +327,12 @@
     </div>
     <div class="results-actions">
       <button class="btn btn-secondary" onclick="window.print()">Print Results</button>
-  
     </div>
     <p class="screenshot-note">
       Screenshot the score summary above and submit it through Google Classroom.<br>
-      You may also review each item below. This is a student-submitted record, not a tamper-proof identity verification.
+      You may also review each item below. This record is saved on this device only.
     </p>
   </div>
-
-  <!-- Per-item answer review -->
   <div class="review-section" id="review-section">
     <h3>Answer Review</h3>
     <div id="review-container"></div>
@@ -343,6 +351,8 @@
 </div>
 
 <script>
+const STORAGE_KEY = "cite_mmw_ch2_exam_v1";
+
 const BANK = [
   {id:"M01",lesson:0,topic:0,q:"Why can mathematics be considered a language?",choices:["It uses only spoken words to explain ideas.","It communicates ideas and relationships through symbols, expressions, and conventions.","It eliminates the need for definitions.","It always produces the same answer regardless of the problem."],ans:"B"},
   {id:"M02",lesson:0,topic:0,q:"Which characteristic of mathematical language allows it to communicate ideas using relatively few symbols?",choices:["Ambiguity","Repetition","Conciseness","Subjectivity"],ans:"C"},
@@ -441,6 +451,20 @@ const LESSON_DENOM = [20, 30];
 const LETTERS = ["A","B","C","D"];
 let examState = null;
 
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(examState));
+  } catch (e) { /* quota or private mode */ }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+}
+
 function shuffle(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -471,6 +495,14 @@ function selectQuestions() {
 }
 
 function startExam() {
+  // Block if already submitted on this device
+  const existing = loadState();
+  if (existing && existing.submitted) {
+    document.getElementById("start-form").style.display = "none";
+    document.getElementById("already-submitted-msg").style.display = "block";
+    return;
+  }
+
   const name = document.getElementById("student-name").value.trim();
   const section = document.getElementById("student-section").value.trim();
   const nameErr = document.getElementById("name-error");
@@ -481,10 +513,36 @@ function startExam() {
   if (!section) { secErr.style.display = "block"; ok = false; }
   if (!ok) return;
 
-  examState = { name, section, questions: selectQuestions(), submitted: false, startTime: new Date() };
-  document.getElementById("banner-name").textContent = name;
-  document.getElementById("banner-section").textContent = section;
-  renderQuestions(); updateProgress();
+  // Resume in-progress attempt if same name, otherwise new
+  if (existing && !existing.submitted && existing.name === name) {
+    examState = existing;
+  } else {
+    examState = {
+      name, section,
+      questions: selectQuestions(),
+      submitted: false,
+      startTime: new Date().toISOString()
+    };
+  }
+  saveState();
+  enterExamUI();
+}
+
+function enterExamUI() {
+  document.getElementById("banner-name").textContent = examState.name;
+  document.getElementById("banner-section").textContent = examState.section;
+  renderQuestions();
+  // restore selected radios
+  examState.questions.forEach((q, idx) => {
+    if (q.studentAnswer) {
+      const radio = document.querySelector(`input[name="q${idx}"][value="${q.studentAnswer}"]`);
+      if (radio) radio.checked = true;
+      const lbl = document.getElementById(`clabel-${idx}-${q.studentAnswer}`);
+      if (lbl) lbl.classList.add("selected");
+      document.getElementById("qcard-" + idx).classList.add("answered");
+    }
+  });
+  updateProgress();
   document.getElementById("start-page").style.display = "none";
   document.getElementById("exam-page").style.display = "block";
   window.scrollTo(0, 0);
@@ -518,6 +576,7 @@ function selectAnswer(qIdx, letter) {
   });
   document.getElementById("qcard-" + qIdx).classList.add("answered");
   updateProgress();
+  saveState(); // persist every answer
 }
 
 function updateProgress() {
@@ -531,7 +590,7 @@ function attemptSubmit() {
   const un = examState.questions.filter(q => q.studentAnswer === null).length;
   document.getElementById("confirm-msg").textContent = un > 0
     ? `You have ${un} unanswered question${un > 1 ? "s" : ""}. Unanswered questions score zero. Submit anyway?`
-    : "Are you sure you want to submit? You cannot change answers after submission.";
+    : "Are you sure you want to submit? You cannot retake after submission.";
   document.getElementById("confirm-modal").classList.add("show");
 }
 function closeModal() { document.getElementById("confirm-modal").classList.remove("show"); }
@@ -540,7 +599,8 @@ function confirmSubmit() {
   closeModal();
   if (examState.submitted) return;
   examState.submitted = true;
-  examState.submitTime = new Date();
+  examState.submitTime = new Date().toISOString();
+  saveState();
   document.querySelectorAll('#questions-container input[type="radio"]').forEach(r => r.disabled = true);
   document.getElementById("submit-btn").disabled = true;
   document.getElementById("submit-btn").textContent = "Submitted";
@@ -562,7 +622,8 @@ function gradeAndShow() {
   const pct = Math.round((correct / 50) * 100);
   document.getElementById("res-name").textContent = examState.name;
   document.getElementById("res-section").textContent = examState.section;
-  document.getElementById("res-datetime").textContent = examState.submitTime.toLocaleString();
+  const dt = examState.submitTime ? new Date(examState.submitTime) : new Date();
+  document.getElementById("res-datetime").textContent = dt.toLocaleString();
   document.getElementById("res-score").textContent = correct + " / 50";
   document.getElementById("res-pct").textContent = pct + "%";
   document.getElementById("res-detail").textContent =
@@ -588,7 +649,6 @@ function gradeAndShow() {
       <td class="num">${sc} / ${meta.denom}</td><td class="pct-col">${p}%</td></tr>`;
   });
 
-  // Per-item answer review
   const review = document.getElementById("review-container");
   review.innerHTML = "";
   examState.questions.forEach((q, idx) => {
@@ -622,16 +682,29 @@ function gradeAndShow() {
   window.scrollTo(0, 0);
 }
 
-function restartExam() {
-  examState = null;
-  document.getElementById("results-page").style.display = "none";
-  document.getElementById("start-page").style.display = "flex";
-  document.getElementById("student-name").value = "";
-  document.getElementById("student-section").value = "";
-  document.getElementById("name-error").style.display = "none";
-  document.getElementById("section-error").style.display = "none";
-  window.scrollTo(0, 0);
+function showStoredResults() {
+  const s = loadState();
+  if (!s || !s.submitted) return;
+  examState = s;
+  gradeAndShow();
 }
+
+/* On page load: restore in-progress or block if submitted */
+(function init() {
+  const s = loadState();
+  if (!s) return;
+  if (s.submitted) {
+    document.getElementById("start-form").style.display = "none";
+    document.getElementById("already-submitted-msg").style.display = "block";
+  } else {
+    // offer resume — auto-resume with stored name
+    examState = s;
+    document.getElementById("student-name").value = s.name || "";
+    document.getElementById("student-section").value = s.section || "";
+    // auto enter exam so progress is not lost
+    enterExamUI();
+  }
+})();
 
 function applyTheme(t) {
   if (t === "auto") document.documentElement.removeAttribute("data-theme");
