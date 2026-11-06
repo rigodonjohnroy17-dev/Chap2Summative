@@ -352,6 +352,8 @@
 
 <script>
 const STORAGE_KEY = "cite_mmw_ch2_exam_v1";
+const ATTEMPTS_KEY = "cite_mmw_ch2_attempts_v1";
+const MAX_ATTEMPTS = 2;
 
 const BANK = [
   {id:"M01",lesson:0,topic:0,q:"Why can mathematics be considered a language?",choices:["It uses only spoken words to explain ideas.","It communicates ideas and relationships through symbols, expressions, and conventions.","It eliminates the need for definitions.","It always produces the same answer regardless of the problem."],ans:"B"},
@@ -451,10 +453,22 @@ const LESSON_DENOM = [20, 30];
 const LETTERS = ["A","B","C","D"];
 let examState = null;
 
+function getAttempts() {
+  try {
+    return parseInt(localStorage.getItem(ATTEMPTS_KEY) || "0", 10) || 0;
+  } catch (e) { return 0; }
+}
+
+function setAttempts(n) {
+  try {
+    localStorage.setItem(ATTEMPTS_KEY, String(n));
+  } catch (e) {}
+}
+
 function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(examState));
-  } catch (e) { /* quota or private mode */ }
+  } catch (e) {}
 }
 
 function loadState() {
@@ -495,11 +509,14 @@ function selectQuestions() {
 }
 
 function startExam() {
-  // Block if already submitted on this device
-  const existing = loadState();
-  if (existing && existing.submitted) {
+  const attempts = getAttempts();
+
+  // Block when both attempts are already used
+  if (attempts >= MAX_ATTEMPTS) {
     document.getElementById("start-form").style.display = "none";
     document.getElementById("already-submitted-msg").style.display = "block";
+    document.getElementById("already-submitted-msg").innerHTML =
+      `This device has already used both attempts (<strong>${MAX_ATTEMPTS}/${MAX_ATTEMPTS}</strong>). No more submissions are allowed.`;
     return;
   }
 
@@ -507,18 +524,23 @@ function startExam() {
   const section = document.getElementById("student-section").value.trim();
   const nameErr = document.getElementById("name-error");
   const secErr = document.getElementById("section-error");
-  nameErr.style.display = "none"; secErr.style.display = "none";
+  nameErr.style.display = "none";
+  secErr.style.display = "none";
+
   let ok = true;
   if (!name) { nameErr.style.display = "block"; ok = false; }
   if (!section) { secErr.style.display = "block"; ok = false; }
   if (!ok) return;
 
-  // Resume in-progress attempt if same name, otherwise new
-  if (existing && !existing.submitted && existing.name === name) {
+  const existing = loadState();
+
+  // Resume unfinished attempt (same name or any unfinished)
+  if (existing && !existing.submitted) {
     examState = existing;
   } else {
     examState = {
-      name, section,
+      name,
+      section,
       questions: selectQuestions(),
       submitted: false,
       startTime: new Date().toISOString()
@@ -532,7 +554,6 @@ function enterExamUI() {
   document.getElementById("banner-name").textContent = examState.name;
   document.getElementById("banner-section").textContent = examState.section;
   renderQuestions();
-  // restore selected radios
   examState.questions.forEach((q, idx) => {
     if (q.studentAnswer) {
       const radio = document.querySelector(`input[name="q${idx}"][value="${q.studentAnswer}"]`);
@@ -553,7 +574,8 @@ function renderQuestions() {
   container.innerHTML = "";
   examState.questions.forEach((q, idx) => {
     const card = document.createElement("div");
-    card.className = "question-card"; card.id = "qcard-" + idx;
+    card.className = "question-card";
+    card.id = "qcard-" + idx;
     let html = "";
     q.choices.forEach((text, cIdx) => {
       const L = LETTERS[cIdx];
@@ -576,7 +598,7 @@ function selectAnswer(qIdx, letter) {
   });
   document.getElementById("qcard-" + qIdx).classList.add("answered");
   updateProgress();
-  saveState(); // persist every answer
+  saveState();
 }
 
 function updateProgress() {
@@ -590,17 +612,26 @@ function attemptSubmit() {
   const un = examState.questions.filter(q => q.studentAnswer === null).length;
   document.getElementById("confirm-msg").textContent = un > 0
     ? `You have ${un} unanswered question${un > 1 ? "s" : ""}. Unanswered questions score zero. Submit anyway?`
-    : "Are you sure you want to submit? You cannot retake after submission.";
+    : "Are you sure you want to submit? You cannot change answers after submission.";
   document.getElementById("confirm-modal").classList.add("show");
 }
-function closeModal() { document.getElementById("confirm-modal").classList.remove("show"); }
+
+function closeModal() {
+  document.getElementById("confirm-modal").classList.remove("show");
+}
 
 function confirmSubmit() {
   closeModal();
   if (examState.submitted) return;
+
   examState.submitted = true;
   examState.submitTime = new Date().toISOString();
   saveState();
+
+  // Count this as one used attempt
+  const used = getAttempts() + 1;
+  setAttempts(used);
+
   document.querySelectorAll('#questions-container input[type="radio"]').forEach(r => r.disabled = true);
   document.getElementById("submit-btn").disabled = true;
   document.getElementById("submit-btn").textContent = "Submitted";
@@ -615,7 +646,9 @@ function gradeAndShow() {
   examState.questions.forEach(q => {
     if (q.studentAnswer === null) unanswered++;
     else if (q.studentAnswer === q.correct) {
-      correct++; topicCorrect[q.topic]++; lessonCorrect[q.lesson]++;
+      correct++;
+      topicCorrect[q.topic]++;
+      lessonCorrect[q.lesson]++;
     } else incorrect++;
   });
 
@@ -689,20 +722,34 @@ function showStoredResults() {
   gradeAndShow();
 }
 
-/* On page load: restore in-progress or block if submitted */
+/* On page load */
 (function init() {
-  const s = loadState();
-  if (!s) return;
-  if (s.submitted) {
+  const attempts = getAttempts();
+
+  if (attempts >= MAX_ATTEMPTS) {
     document.getElementById("start-form").style.display = "none";
     document.getElementById("already-submitted-msg").style.display = "block";
-  } else {
-    // offer resume — auto-resume with stored name
+    document.getElementById("already-submitted-msg").innerHTML =
+      `This device has already used both attempts (<strong>${MAX_ATTEMPTS}/${MAX_ATTEMPTS}</strong>). No more submissions are allowed.`;
+    return;
+  }
+
+  // Show remaining attempts info
+  const remaining = MAX_ATTEMPTS - attempts;
+  const note = document.querySelector(".info-note");
+  if (note) {
+    note.innerHTML = `You may submit up to <strong>${MAX_ATTEMPTS}</strong> times on this device.<br>
+      Attempts used: <strong>${attempts}</strong> · Remaining: <strong>${remaining}</strong>`;
+  }
+
+  const s = loadState();
+  if (!s) return;
+
+  if (!s.submitted) {
+    // Offer resume
     examState = s;
     document.getElementById("student-name").value = s.name || "";
     document.getElementById("student-section").value = s.section || "";
-    // auto enter exam so progress is not lost
-    enterExamUI();
   }
 })();
 
